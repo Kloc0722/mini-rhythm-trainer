@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mini Rhythm Trainer (4K)</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body {
+      background-color: #0d0e12;
+      color: #e6edf3;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      padding: 10px 0 20px 0;
+      overflow-y: auto;
+    }
+    #game-container {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: auto 0;
+    }
+    .hud {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 6px;
+      font-size: 15px;
+      font-weight: bold;
+    }
+    .hud span {
+      color: #58a6ff;
+    }
+    canvas {
+      background-color: #161b22;
+      border: 2px solid #30363d;
+      border-radius: 6px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+      display: block;
+    }
+    .controls-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 8px;
+      background-color: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 10px 14px;
+      width: 320px;
+    }
+    .control-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+    }
+    .control-row label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #8b949e;
+    }
+    .val-display {
+      font-family: monospace;
+      font-weight: bold;
+      color: #58a6ff;
+      min-width: 54px;
+      text-align: right;
+    }
+    input[type="range"] {
+      cursor: pointer;
+      accent-color: #58a6ff;
+      width: 110px;
+      height: 4px;
+    }
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: #c9d1d9;
+      padding-top: 2px;
+    }
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+    .toggle-label input[type="checkbox"] {
+      cursor: pointer;
+      accent-color: #58a6ff;
+      width: 14px;
+      height: 14px;
+    }
+    .hint-text {
+      font-size: 11px;
+      color: #7d8590;
+      text-align: center;
+      line-height: 1.2;
+      margin: 2px 0;
+    }
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    button {
+      flex: 1;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: bold;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+    }
+    .btn-primary {
+      background-color: #238636;
+      color: white;
+    }
+    .btn-primary:hover {
+      background-color: #2ea043;
+    }
+    .btn-secondary {
+      background-color: #30363d;
+      color: #c9d1d9;
+    }
+    .btn-secondary:hover {
+      background-color: #3c444d;
+    }
+    .btn-danger {
+      background-color: #da3633;
+      color: white;
+    }
+    .btn-danger:hover {
+      background-color: #e5534b;
+    }
+    button:disabled {
+      background-color: #21262d;
+      color: #484f58;
+      cursor: not-allowed;
+    }
+    /* 結算彈窗 */
+    #result-modal {
+      display: none;
+      position: absolute;
+      top: 45%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: #1c2128;
+      border: 2px solid #388bfd;
+      border-radius: 12px;
+      padding: 20px 24px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.85);
+      text-align: center;
+      min-width: 290px;
+      z-index: 10;
+    }
+    #result-modal h2 {
+      margin-bottom: 12px;
+      color: #58a6ff;
+      font-size: 18px;
+    }
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 5px 0;
+      font-size: 13px;
+    }
+    .result-val {
+      font-weight: bold;
+    }
+    .divider {
+      height: 1px;
+      background-color: #30363d;
+      margin: 8px 0;
+    }
+    #btn-modal-restart {
+      margin-top: 14px;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="game-container">
+    <div class="hud">
+      <div>SCORE: <span id="val-score">0</span></div>
+      <div>ACC: <span id="val-acc">100.00%</span></div>
+      <div>COMBO: <span id="val-combo">0</span></div>
+    </div>
+
+    <canvas id="gameCanvas" width="320" height="460"></canvas>
+
+    <div class="controls-panel">
+      <!-- 滾動速度 -->
+      <div class="control-row">
+        <label for="slider-speed">下落速度</label>
+        <input type="range" id="slider-speed" min="1.0" max="4.0" step="0.1" value="2.2">
+        <span class="val-display" id="val-speed">2.2x</span>
+      </div>
+
+      <!-- BPM 自訂 -->
+      <div class="control-row">
+        <label for="slider-bpm">節奏速度 (BPM)</label>
+        <input type="range" id="slider-bpm" min="60" max="240" step="5" value="130">
+        <span class="val-display" id="val-bpm">130</span>
+      </div>
+
+      <!-- 小節數自訂 -->
+      <div class="control-row">
+        <label for="slider-bars">訓練小節數</label>
+        <input type="range" id="slider-bars" min="4" max="64" step="4" value="16">
+        <span class="val-display" id="val-bars">16 bars</span>
+      </div>
+
+      <!-- Audio Offset 校正 -->
+      <div class="control-row">
+        <label for="slider-offset">聲音視聽 Offset</label>
+        <input type="range" id="slider-offset" min="-200" max="200" step="5" value="0">
+        <span class="val-display" id="val-offset">0 ms</span>
+      </div>
+      <div class="hint-text">調整至「眼睛看到壓線」與「耳朵聽到重音」一致</div>
+
+      <!-- 打擊音效開關 -->
+      <div class="toggle-row">
+        <span>按鍵打擊音效</span>
+        <label class="toggle-label">
+          <input type="checkbox" id="toggle-hitsound" checked>
+          <span id="label-hitsound">開啟</span>
+        </label>
+      </div>
+
+      <!-- 按鈕控制群 -->
+      <div class="btn-group">
+        <button id="btn-start" class="btn-primary">開始</button>
+        <button id="btn-restart" class="btn-secondary" disabled>重來</button>
+        <button id="btn-quit" class="btn-danger" disabled>退出</button>
+      </div>
+    </div>
+
+    <!-- 結算畫面 -->
+    <div id="result-modal">
+      <h2>訓練結算</h2>
+      <div class="result-row"><span>準確率 (Accuracy):</span><span class="result-val" id="res-acc" style="color: #58a6ff;">0%</span></div>
+      <div class="result-row"><span>最大連擊 (Max Combo):</span><span class="result-val" id="res-combo">0</span></div>
+      <div class="result-row"><span>Perfect (±45ms):</span><span class="result-val" id="res-perfect" style="color: #3fb950;">0</span></div>
+      <div class="result-row"><span>Good (±90ms):</span><span class="result-val" id="res-good" style="color: #d29922;">0</span></div>
+      <div class="result-row"><span>Bad (±140ms):</span><span class="result-val" id="res-bad" style="color: #f85149;">0</span></div>
+      <div class="result-row"><span>Miss:</span><span class="result-val" id="res-miss" style="color: #8b949e;">0</span></div>
+      
+      <div class="divider"></div>
+      
+      <div class="result-row"><span>Unstable Rate (UR):</span><span class="result-val" id="res-ur" style="color: #f0883e;">0.00</span></div>
+      <div class="result-row"><span>Hit Error:</span><span class="result-val" id="res-error-range">-0.0ms ~ +0.0ms</span></div>
+      <div class="result-row"><span>平均偏差 (Mean):</span><span class="result-val" id="res-offset">0 ms</span></div>
+
+      <button id="btn-modal-restart" class="btn-primary">再試一次</button>
+    </div>
+  </div>
+
+  <script>
+    const CANVAS_WIDTH = 320;
+    const CANVAS_HEIGHT = 460;
+    const LANE_COUNT = 4;
+    const LANE_WIDTH = CANVAS_WIDTH / LANE_COUNT;
+    const HIT_LINE_Y = 390;
+    const NOTE_HEIGHT = 14;
+
+    const COUNT_IN_BARS = 1; // 預備 1 小節
+
+    const KEY_MAP = {
+      'KeyD': 0, 'KeyF': 1, 'KeyJ': 2, 'KeyK': 3,
+      'd': 0, 'f': 1, 'j': 2, 'k': 3,
+      'D': 0, 'F': 1, 'J': 2, 'K': 3
+    };
+
+    const LANE_COLORS = ['#388bfd', '#d2a8ff', '#d2a8ff', '#388bfd'];
+
+    const WINDOW_PERFECT = 45;
+    const WINDOW_GOOD = 90;
+    const WINDOW_BAD = 140;
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const btnStart = document.getElementById('btn-start');
+    const btnRestart = document.getElementById('btn-restart');
+    const btnQuit = document.getElementById('btn-quit');
+    const btnModalRestart = document.getElementById('btn-modal-restart');
+    const toggleHitSound = document.getElementById('toggle-hitsound');
+    const labelHitSound = document.getElementById('label-hitsound');
+
+    const sliderSpeed = document.getElementById('slider-speed');
+    const valSpeed = document.getElementById('val-speed');
+    const sliderBpm = document.getElementById('slider-bpm');
+    const valBpm = document.getElementById('val-bpm');
+    const sliderBars = document.getElementById('slider-bars');
+    const valBars = document.getElementById('val-bars');
+    const sliderOffset = document.getElementById('slider-offset');
+    const valOffset = document.getElementById('val-offset');
+    const valScore = document.getElementById('val-score');
+    const valAcc = document.getElementById('val-acc');
+    const valCombo = document.getElementById('val-combo');
+    const modal = document.getElementById('result-modal');
+
+    // --- Web Audio 系統 ---
+    let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playMetronome(isDownbeat) {
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const freq = isDownbeat ? 1200 : 800;
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.04);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.05);
+    }
+
+    function playHitSound() {
+      if (!audioCtx || !isHitSoundEnabled) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(540, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(140, audioCtx.currentTime + 0.05);
+
+      gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.06);
+    }
+
+    // --- 遊戲狀態 ---
+    let isPlaying = false;
+    let startTime = 0;
+    let hiSpeed = parseFloat(sliderSpeed.value);
+    let bpm = parseInt(sliderBpm.value, 10);
+    let playBars = parseInt(sliderBars.value, 10);
+    let totalBars = COUNT_IN_BARS + playBars;
+    let totalBeats = totalBars * 4;
+    let beatDuration = 60000 / bpm;
+    let audioOffset = parseInt(sliderOffset.value, 10);
+    let isHitSoundEnabled = toggleHitSound.checked;
+
+    let notes = [];
+    let keyPressState = [false, false, false, false];
+
+    let score = 0;
+    let combo = 0;
+    let maxCombo = 0;
+    let counts = { perfect: 0, good: 0, bad: 0, miss: 0 };
+    let offsets = [];
+    let nextMetronomeBeat = 0;
+
+    let currentJudgement = '';
+    let judgementColor = '#fff';
+    let judgementTimer = 0;
+    let recentErrorOffset = null;
+
+    // --- 每個半拍皆有音符的生成邏輯 ---
+    function generateChart() {
+      notes = [];
+      const playStartBeat = COUNT_IN_BARS * 4;
+      const playEndBeat = totalBeats;
+      let lastLane = -1;
+      let secondLastLane = -1;
+
+      // 步進為 0.5 拍，確保每一個半拍點都產生音符
+      for (let beat = playStartBeat; beat < playEndBeat; beat += 0.5) {
+        const beatTime = beat * beatDuration;
+
+        // 挑選軌道：防止同軌 3 連打
+        let lane1 = Math.floor(Math.random() * 4);
+        while (lane1 === lastLane && lane1 === secondLastLane) {
+          lane1 = Math.floor(Math.random() * 4);
+        }
+
+        notes.push({ lane: lane1, baseTime: beatTime, hit: false, missed: false });
+
+        // 偶爾在正拍處（整數拍）增加雙押
+        if (Number.isInteger(beat) && Math.random() < 0.20) {
+          let lane2 = Math.floor(Math.random() * 4);
+          while (lane2 === lane1) {
+            lane2 = Math.floor(Math.random() * 4);
+          }
+          notes.push({ lane: lane2, baseTime: beatTime, hit: false, missed: false });
+        }
+
+        secondLastLane = lastLane;
+        lastLane = lane1;
+      }
+
+      notes.sort((a, b) => a.baseTime - b.baseTime);
+    }
+
+    function setControlsActive(running) {
+      btnStart.disabled = running;
+      btnRestart.disabled = !running;
+      btnQuit.disabled = !running;
+      sliderBars.disabled = running;
+    }
+
+    function startGame() {
+      initAudio();
+      modal.style.display = 'none';
+      setControlsActive(true);
+
+      bpm = parseInt(sliderBpm.value, 10);
+      playBars = parseInt(sliderBars.value, 10);
+      totalBars = COUNT_IN_BARS + playBars;
+      totalBeats = totalBars * 4;
+      beatDuration = 60000 / bpm;
+      audioOffset = parseInt(sliderOffset.value, 10);
+
+      generateChart();
+      score = 0;
+      combo = 0;
+      maxCombo = 0;
+      counts = { perfect: 0, good: 0, bad: 0, miss: 0 };
+      offsets = [];
+      nextMetronomeBeat = 0;
+      currentJudgement = '';
+      recentErrorOffset = null;
+      updateHud();
+
+      startTime = performance.now();
+      isPlaying = true;
+    }
+
+    function quitGame() {
+      isPlaying = false;
+      notes = [];
+      setControlsActive(false);
+      modal.style.display = 'none';
+      currentJudgement = '';
+      recentErrorOffset = null;
+      score = 0;
+      combo = 0;
+      updateHud();
+    }
+
+    function finishGame() {
+      isPlaying = false;
+      setControlsActive(false);
+
+      const totalNotes = counts.perfect + counts.good + counts.bad + counts.miss;
+      const acc = totalNotes === 0 ? 100 :
+        (((counts.perfect * 100) + (counts.good * 65) + (counts.bad * 20)) / (totalNotes * 100) * 100);
+
+      let urText = "0.00";
+      let errorRangeText = "0.0ms ~ +0.0ms";
+      let meanOffsetText = "0.0 ms";
+
+      if (offsets.length > 0) {
+        const mean = offsets.reduce((a, b) => a + b, 0) / offsets.length;
+        meanOffsetText = (mean >= 0 ? '+' : '') + mean.toFixed(1) + ' ms';
+
+        const variance = offsets.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / offsets.length;
+        const stdDev = Math.sqrt(variance);
+        const ur = stdDev * 10;
+        urText = ur.toFixed(2);
+
+        const minOffset = Math.min(...offsets);
+        const maxOffset = Math.max(...offsets);
+        errorRangeText = `${minOffset >= 0 ? '+' : ''}${minOffset.toFixed(1)}ms ~ ${maxOffset >= 0 ? '+' : ''}${maxOffset.toFixed(1)}ms`;
+      }
+
+      document.getElementById('res-acc').textContent = acc.toFixed(2) + '%';
+      document.getElementById('res-combo').textContent = maxCombo;
+      document.getElementById('res-perfect').textContent = counts.perfect;
+      document.getElementById('res-good').textContent = counts.good;
+      document.getElementById('res-bad').textContent = counts.bad;
+      document.getElementById('res-miss').textContent = counts.miss;
+      
+      document.getElementById('res-ur').textContent = urText;
+      document.getElementById('res-error-range').textContent = errorRangeText;
+      document.getElementById('res-offset').textContent = meanOffsetText;
+
+      modal.style.display = 'block';
+    }
+
+    // --- 鍵盤監聽 ---
+    window.addEventListener('keydown', (e) => {
+      if (KEY_MAP[e.code] !== undefined || KEY_MAP[e.key] !== undefined) {
+        const lane = KEY_MAP[e.code] !== undefined ? KEY_MAP[e.code] : KEY_MAP[e.key];
+        if (!keyPressState[lane]) {
+          keyPressState[lane] = true;
+          handleKeyPress(lane);
+        }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (KEY_MAP[e.code] !== undefined || KEY_MAP[e.key] !== undefined) {
+        const lane = KEY_MAP[e.code] !== undefined ? KEY_MAP[e.code] : KEY_MAP[e.key];
+        keyPressState[lane] = false;
+      }
+    });
+
+    function handleKeyPress(lane) {
+      if (!isPlaying) return;
+      playHitSound();
+
+      const currentTime = performance.now() - startTime;
+
+      let closestNote = null;
+      let minDiff = Infinity;
+
+      for (const note of notes) {
+        if (note.lane === lane && !note.hit && !note.missed) {
+          const expectedHitTime = note.baseTime + audioOffset;
+          const diff = currentTime - expectedHitTime;
+
+          if (Math.abs(diff) <= WINDOW_BAD) {
+            if (Math.abs(diff) < Math.abs(minDiff)) {
+              minDiff = diff;
+              closestNote = note;
+            }
+          }
+        }
+      }
+
+      if (closestNote) {
+        closestNote.hit = true;
+        const absDiff = Math.abs(minDiff);
+        offsets.push(minDiff);
+        recentErrorOffset = minDiff;
+
+        if (absDiff <= WINDOW_PERFECT) {
+          counts.perfect++;
+          combo++;
+          score += 300;
+          triggerJudgement('PERFECT', '#3fb950');
+        } else if (absDiff <= WINDOW_GOOD) {
+          counts.good++;
+          combo++;
+          score += 150;
+          triggerJudgement('GOOD', '#d29922');
+        } else {
+          counts.bad++;
+          combo = 0;
+          score += 50;
+          triggerJudgement('BAD', '#f85149');
+        }
+
+        if (combo > maxCombo) maxCombo = combo;
+        updateHud();
+      }
+    }
+
+    function triggerJudgement(text, color) {
+      currentJudgement = text;
+      judgementColor = color;
+      judgementTimer = performance.now();
+    }
+
+    function updateHud() {
+      valScore.textContent = score;
+      valCombo.textContent = combo;
+
+      const totalHit = counts.perfect + counts.good + counts.bad + counts.miss;
+      if (totalHit === 0) {
+        valAcc.textContent = '100.00%';
+      } else {
+        const acc = ((counts.perfect * 100) + (counts.good * 65) + (counts.bad * 20)) / (totalHit * 100) * 100;
+        valAcc.textContent = acc.toFixed(2) + '%';
+      }
+    }
+
+    // --- 遊戲主迴圈 ---
+    function gameLoop(now) {
+      ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+      const currentTime = isPlaying ? (now - startTime) : 0;
+
+      if (isPlaying) {
+        const currentBeatIndex = Math.floor(currentTime / beatDuration);
+        while (nextMetronomeBeat <= currentBeatIndex && nextMetronomeBeat < totalBeats) {
+          const isDownbeat = (nextMetronomeBeat % 4 === 0);
+          playMetronome(isDownbeat);
+          nextMetronomeBeat++;
+        }
+
+        for (const note of notes) {
+          const expectedHitTime = note.baseTime + audioOffset;
+          if (!note.hit && !note.missed && (currentTime - expectedHitTime > WINDOW_BAD)) {
+            note.missed = true;
+            counts.miss++;
+            combo = 0;
+            triggerJudgement('MISS', '#8b949e');
+            updateHud();
+          }
+        }
+
+        const totalDuration = totalBeats * beatDuration + Math.max(0, audioOffset) + 500;
+        if (currentTime >= totalDuration) {
+          finishGame();
+        }
+      }
+
+      // 1. 軌道
+      for (let i = 0; i < LANE_COUNT; i++) {
+        const x = i * LANE_WIDTH;
+
+        ctx.strokeStyle = '#21262d';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, 0, LANE_WIDTH, CANVAS_HEIGHT);
+
+        if (keyPressState[i]) {
+          const gradient = ctx.createLinearGradient(0, HIT_LINE_Y, 0, HIT_LINE_Y - 140);
+          gradient.addColorStop(0, LANE_COLORS[i] + '66');
+          gradient.addColorStop(1, 'transparent');
+          ctx.fillStyle = gradient;
+          ctx.fillRect(x, 0, LANE_WIDTH, HIT_LINE_Y);
+        }
+      }
+
+      // 2. 判定線
+      ctx.fillStyle = '#f0883e';
+      ctx.fillRect(0, HIT_LINE_Y - 2, CANVAS_WIDTH, 4);
+
+      // 3. 音符
+      const pixelsPerMs = 0.35 * hiSpeed;
+
+      for (const note of notes) {
+        if (note.hit) continue;
+
+        const visualTargetTime = note.baseTime + audioOffset;
+        const timeDiff = visualTargetTime - currentTime;
+        const y = HIT_LINE_Y - (timeDiff * pixelsPerMs);
+
+        if (y > -20 && y < CANVAS_HEIGHT + 20) {
+          ctx.fillStyle = note.missed ? '#484f58' : LANE_COLORS[note.lane];
+          ctx.fillRect(note.lane * LANE_WIDTH + 4, y - (NOTE_HEIGHT / 2), LANE_WIDTH - 8, NOTE_HEIGHT);
+
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+          ctx.fillRect(note.lane * LANE_WIDTH + 6, y - (NOTE_HEIGHT / 2) + 2, LANE_WIDTH - 12, 3);
+        }
+      }
+
+      // 4. 判定與連擊文字
+      if (now - judgementTimer < 450 && currentJudgement) {
+        ctx.font = 'bold 24px monospace';
+        ctx.fillStyle = judgementColor;
+        ctx.textAlign = 'center';
+        ctx.fillText(currentJudgement, CANVAS_WIDTH / 2, HIT_LINE_Y - 110);
+      }
+
+      if (combo > 1) {
+        ctx.font = 'bold 20px sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.fillText(combo + ' COMBO', CANVAS_WIDTH / 2, HIT_LINE_Y - 70);
+      }
+
+      // 5. Hit Error 標尺
+      drawHitErrorBar();
+
+      // 倒數文字
+      if (isPlaying) {
+        const beatIndex = Math.floor(currentTime / beatDuration);
+        if (beatIndex < 4) {
+          const count = 4 - beatIndex;
+          ctx.font = 'bold 32px sans-serif';
+          ctx.fillStyle = '#e3b341';
+          ctx.textAlign = 'center';
+          ctx.fillText('READY: ' + count, CANVAS_WIDTH / 2, 200);
+        }
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    function drawHitErrorBar() {
+      const barY = HIT_LINE_Y + 28;
+      const barWidth = 140;
+      const barHeight = 4;
+      const startX = (CANVAS_WIDTH - barWidth) / 2;
+
+      ctx.fillStyle = '#30363d';
+      ctx.fillRect(startX, barY, barWidth, barHeight);
+
+      ctx.fillStyle = '#58a6ff';
+      ctx.fillRect(CANVAS_WIDTH / 2 - 1, barY - 4, 2, barHeight + 8);
+
+      if (recentErrorOffset !== null) {
+        const maxOffset = WINDOW_BAD;
+        const clampedOffset = Math.max(-maxOffset, Math.min(maxOffset, recentErrorOffset));
+        const indicatorX = (CANVAS_WIDTH / 2) + (clampedOffset / maxOffset) * (barWidth / 2);
+
+        ctx.fillStyle = Math.abs(recentErrorOffset) <= WINDOW_PERFECT ? '#3fb950' : '#f85149';
+        ctx.beginPath();
+        ctx.arc(indicatorX, barY + (barHeight / 2), 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // --- 控制面板事件 ---
+    sliderSpeed.addEventListener('input', (e) => {
+      hiSpeed = parseFloat(e.target.value);
+      valSpeed.textContent = hiSpeed.toFixed(1) + 'x';
+    });
+
+    sliderBpm.addEventListener('input', (e) => {
+      bpm = parseInt(e.target.value, 10);
+      valBpm.textContent = bpm;
+    });
+
+    sliderBars.addEventListener('input', (e) => {
+      playBars = parseInt(e.target.value, 10);
+      valBars.textContent = playBars + ' bars';
+    });
+
+    sliderOffset.addEventListener('input', (e) => {
+      audioOffset = parseInt(e.target.value, 10);
+      valOffset.textContent = (audioOffset >= 0 ? '+' : '') + audioOffset + ' ms';
+    });
+
+    toggleHitSound.addEventListener('change', (e) => {
+      isHitSoundEnabled = e.target.checked;
+      labelHitSound.textContent = isHitSoundEnabled ? '開啟' : '靜音';
+    });
+
+    btnStart.addEventListener('click', startGame);
+    btnRestart.addEventListener('click', startGame);
+    btnQuit.addEventListener('click', quitGame);
+    btnModalRestart.addEventListener('click', startGame);
+
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
